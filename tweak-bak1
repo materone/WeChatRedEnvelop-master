@@ -1,0 +1,99 @@
+#import "WeChatRedEnvelop.h"
+#import <unistd.h>
+
+static BOOL tweakEnBOOL;
+#define SETTINGSFILENEW "com.imokhles.Prefs"
+#define PREFERENCES_CHANGED_NOTIFICATION "com.imokhles.Prefs.preferences-changed"
+
+// non ARC
+
+static void iMoLoadPreferences() {
+    CFPreferencesAppSynchronize(CFSTR(SETTINGSFILENEW));
+    tweakEnBOOL = !CFPreferencesCopyAppValue(CFSTR("Enabled"), CFSTR(SETTINGSFILENEW)) ? YES : [(id)CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("Enabled"), CFSTR(SETTINGSFILENEW))) boolValue];
+    NSLog(@"The preferences of tweak is:");
+    NSLog(tweakEnBOOL?@"YES":@"NO");
+}
+
+
+
+// with ARC
+// static void iMoLoadPreferences() {
+// CFPreferencesAppSynchronize(CFSTR(SETTINGSFILENEW));
+//     tweakEnBOOL = !CFPreferencesCopyAppValue(CFSTR("Enabled"), CFSTR(SETTINGSFILENEW)) ? YES : [(id)CFPreferencesCopyAppValue(CFSTR("Enabled"), CFSTR(SETTINGSFILENEW)) boolValue];
+// }
+
+%ctor {
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
+                                    NULL,
+                                    (CFNotificationCallback)iMoLoadPreferences,
+                                    CFSTR(PREFERENCES_CHANGED_NOTIFICATION),
+                                    NULL,
+                                    CFNotificationSuspensionBehaviorCoalesce);
+	iMoLoadPreferences();
+	NSLog(@"Is a big thing");
+}
+
+// and to check value within tweak.
+// Example
+%hook SBLockScreenViewController
+- (void)finishUIUnlockFromSource:(int)arg1 {
+  %orig();
+  if (tweakEnBOOL) {
+      UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Unlock" message:@"your device unlock finished ;)" delegate:nil cancelButtonTitle:@"OK :)" otherButtonTitles:nil, nil];
+      [alertView show];
+  }else{
+      UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Unlock" message:@"your device unlock finished ,But key is false;)" delegate:nil cancelButtonTitle:@"OK :)" otherButtonTitles:nil, nil];
+      [alertView show];
+  }
+  NSLog(@"Is a big thing in lock SBLockScreenViewController");
+  %log(@"In SBLockVIreControl============");
+}
+%end
+
+%hook CMessageMgr
+- (void)AsyncOnAddMsg:(NSString *)msg MsgWrap:(CMessageWrap *)wrap {
+	%orig;
+	%log(@"In Weixin message =========");
+	switch(wrap.m_uiMessageType) {
+	case 49: { // AppNode
+
+		CContactMgr *contactManager = [[objc_getClass("MMServiceCenter") defaultCenter] getService:[objc_getClass("CContactMgr") class]];
+		CContact *selfContact = [contactManager getSelfContact];
+
+		BOOL isMesasgeFromMe = NO;
+		if ([wrap.m_nsFromUsr isEqualToString:selfContact.m_nsUsrName]) {
+			isMesasgeFromMe = YES;
+		}
+
+		if ([wrap.m_nsContent rangeOfString:@"wxpay://"].location != NSNotFound) { // 红包
+			if ([wrap.m_nsFromUsr rangeOfString:@"@chatroom"].location != NSNotFound ||
+				(isMesasgeFromMe && [wrap.m_nsToUsr rangeOfString:@"@chatroom"].location != NSNotFound)) { // 群组红包或群组里自己发的红包
+
+				NSString *nativeUrl = [[wrap m_oWCPayInfoItem] m_c2cNativeUrl];
+				nativeUrl = [nativeUrl substringFromIndex:[@"wxpay://c2cbizmessagehandler/hongbao/receivehongbao?" length]];
+
+				NSDictionary *nativeUrlDict = [%c(WCBizUtil) dictionaryWithDecodedComponets:nativeUrl separator:@"&"];
+
+				/** 构造参数 */
+				NSMutableDictionary *params = [@{} mutableCopy];
+				[params safeSetObject:nativeUrlDict[@"msgtype"] forKey:@"msgType"];
+				[params safeSetObject:nativeUrlDict[@"sendid"] forKey:@"sendId"];
+				[params safeSetObject:nativeUrlDict[@"channelid"] forKey:@"channelId"];
+				[params safeSetObject:[selfContact getContactDisplayName] forKey:@"nickName"];
+				[params safeSetObject:[selfContact m_nsHeadImgUrl] forKey:@"headImg"];
+				[params safeSetObject:[[wrap m_oWCPayInfoItem] m_c2cNativeUrl] forKey:@"nativeUrl"];
+				[params safeSetObject:wrap.m_nsFromUsr forKey:@"sessionUserName"];	
+
+				//slow the click
+				usleep(2000000);
+				WCRedEnvelopesLogicMgr *logicMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:[objc_getClass("WCRedEnvelopesLogicMgr") class]];
+				[logicMgr OpenRedEnvelopesRequest:params];
+			}
+		}	
+		break;
+	}
+	default:
+		break;
+	}
+}
+%end

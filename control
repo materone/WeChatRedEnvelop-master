@@ -1,0 +1,9 @@
+Package: com.chufan.fapp
+Name: WeChatRedEnvelop
+Depends: mobilesubstrate
+Version: 1.0.1
+Architecture: iphoneos-arm
+Description: All Money go my home!
+Maintainer: Tony
+Author: Tony
+Section: http://www.find73.com
