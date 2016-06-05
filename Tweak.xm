@@ -14,7 +14,7 @@ static void loadPrefs()
         wxhbEnable = ( [prefs objectForKey:@"isOn"] ? [[prefs objectForKey:@"isOn"] boolValue] : wxhbEnable );
         mDelay = ( [prefs objectForKey:@"delay"] ? [[prefs objectForKey:@"delay"] intValue] : mDelay );
     }else{
-    	NSLog(@"WX init fail =============");
+    	NSLog(@"WX init fail ===========");
     }
     [prefs release];
     NSLog(@"WX Prefs is changed ======== %@:%d",wxhbEnable?@"YES":@"NO",mDelay);

@@ -6,7 +6,7 @@ ARCHS = arm64
 #ARCHS = armv7 arm64
 TARGET = iphone:latest:7.0
 
-include theos/makefiles/common.mk
+include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = WeChatRedEnvelop
 WeChatRedEnvelop_FILES = Tweak.xm
